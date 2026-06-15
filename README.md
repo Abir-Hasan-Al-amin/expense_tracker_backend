@@ -70,6 +70,53 @@ npm run seed
 
 ---
 
+## Deploying to Vercel
+
+### 1. Prerequisites
+
+- A [Vercel](https://vercel.com) account
+- A [MongoDB Atlas](https://www.mongodb.com/cloud/atlas) cluster (Vercel is serverless — local MongoDB won't work)
+
+### 2. Deploy
+
+```bash
+npm i -g vercel
+vercel
+```
+
+Or connect your GitHub repo in the Vercel dashboard and it will deploy automatically on every push.
+
+### 3. Set Environment Variables
+
+In your Vercel project → **Settings → Environment Variables**, add:
+
+| Variable      | Value                              |
+|---------------|------------------------------------|
+| `MONGODB_URI` | Your Atlas connection string       |
+| `JWT_SECRET`  | A long random secret               |
+| `NODE_ENV`    | `production`                       |
+
+### 4. Allow Vercel IPs in MongoDB Atlas
+
+In Atlas → **Network Access**, add `0.0.0.0/0` to allow connections from Vercel's dynamic IPs.
+
+### 5. Verify the deployment
+
+Visit your deployment URL in a browser — you should see:
+
+```json
+{
+  "name": "Expense Tracker API",
+  "version": "1.0.0",
+  "status": "running",
+  "endpoints": ["/api/auth", "/api/expenses", "/api/categories", "/api/budgets", "/api/health"]
+}
+```
+
+If you see that, the API is live and connected.
+
+---
+
 ## API Reference
 
 All protected routes require an `Authorization: Bearer <token>` header.

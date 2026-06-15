@@ -18,6 +18,16 @@ app.use('/api/expenses', require('./routes/expenses'));
 app.use('/api/categories', require('./routes/categories'));
 app.use('/api/budgets', require('./routes/budgets'));
 
+app.get('/', (req, res) => {
+  res.json({
+    name: 'Expense Tracker API',
+    version: '1.0.0',
+    status: 'running',
+    timestamp: new Date(),
+    endpoints: ['/api/auth', '/api/expenses', '/api/categories', '/api/budgets', '/api/health'],
+  });
+});
+
 app.get('/api/health', (req, res) => {
   res.json({ status: 'ok', timestamp: new Date() });
 });
