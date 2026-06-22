@@ -25,6 +25,14 @@ app.use('/api/auth', require('../routes/auth'));
 app.use('/api/expenses', require('../routes/expenses'));
 app.use('/api/categories', require('../routes/categories'));
 app.use('/api/budgets', require('../routes/budgets'));
+app.use('/api/wallets', require('../routes/wallets'));
+app.use('/api/loans', require('../routes/loans'));
+app.use('/api/savings', require('../routes/savings'));
+app.use('/api/bills', require('../routes/bills'));
+app.use('/api/notifications', require('../routes/notifications'));
+app.use('/api/splits', require('../routes/splits'));
+app.use('/api/analytics', require('../routes/analytics'));
+app.use('/api/export', require('../routes/export'));
 
 app.get('/', (req, res) => {
   res.json({
@@ -32,7 +40,11 @@ app.get('/', (req, res) => {
     version: '1.0.0',
     status: 'running',
     timestamp: new Date(),
-    endpoints: ['/api/auth', '/api/expenses', '/api/categories', '/api/budgets', '/api/health'],
+    endpoints: [
+        '/api/auth', '/api/expenses', '/api/categories', '/api/budgets',
+        '/api/wallets', '/api/loans', '/api/savings', '/api/bills',
+        '/api/notifications', '/api/splits', '/api/analytics', '/api/export',
+      ],
   });
 });
 

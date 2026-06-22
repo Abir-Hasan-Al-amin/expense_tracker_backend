@@ -2,6 +2,7 @@ const express = require('express');
 const router = express.Router();
 const mongoose = require('mongoose');
 const Expense = require('../models/Expense');
+const Wallet = require('../models/Wallet');
 const auth = require('../middleware/auth');
 
 router.use(auth);
@@ -70,6 +71,14 @@ router.get('/', async (req, res) => {
       if (!mongoose.Types.ObjectId.isValid(category)) return res.status(400).json({ message: 'Invalid category ID.' });
       filter.category = category;
     }
+    if (req.query.wallet) {
+      if (!mongoose.Types.ObjectId.isValid(req.query.wallet)) return res.status(400).json({ message: 'Invalid wallet ID.' });
+      filter.wallet = req.query.wallet;
+    }
+    if (req.query.tags) {
+      const tagList = Array.isArray(req.query.tags) ? req.query.tags : [req.query.tags];
+      filter.tags = { $in: tagList };
+    }
     if (startDate || endDate) {
       filter.date = {};
       if (startDate) filter.date.$gte = new Date(startDate);
@@ -81,7 +90,7 @@ router.get('/', async (req, res) => {
     sortObj[sort === 'amount' ? 'amount' : 'date'] = validOrder;
 
     const expenses = await Expense.find(filter)
-      .populate('category')
+      .populate('category wallet')
       .sort(sortObj)
       .limit(limit)
       .skip((parseInt(page) - 1) * limit);
@@ -239,7 +248,7 @@ router.get('/:id', async (req, res) => {
   try {
     if (!mongoose.Types.ObjectId.isValid(req.params.id))
       return res.status(400).json({ message: 'Invalid expense ID' });
-    const expense = await Expense.findOne({ _id: req.params.id, user: req.user.id }).populate('category');
+    const expense = await Expense.findOne({ _id: req.params.id, user: req.user.id }).populate('category wallet');
     if (!expense) return res.status(404).json({ message: 'Expense not found' });
     res.json(expense);
   } catch (err) {
@@ -249,14 +258,23 @@ router.get('/:id', async (req, res) => {
 
 router.post('/', async (req, res) => {
   try {
-    const { title, amount, type, category, date, note, isRecurring, recurringFrequency } = req.body;
-    const body = { user: req.user.id, title, amount, type, category, date, note, isRecurring, recurringFrequency };
+    const { title, amount, type, category, date, note, isRecurring, recurringFrequency, wallet: walletId, tags } = req.body;
+    const body = { user: req.user.id, title, amount, type, category, date, note, isRecurring, recurringFrequency, wallet: walletId || null, tags: tags || [] };
     if (body.isRecurring && body.recurringFrequency) {
       body.recurringNextDate = getNextDate(body.date || new Date(), body.recurringFrequency);
     }
     const expense = new Expense(body);
     await expense.save();
-    await expense.populate('category');
+
+    if (walletId) {
+      const wallet = await Wallet.findOne({ _id: walletId, user: req.user.id });
+      if (wallet) {
+        wallet.balance += type === 'income' ? amount : -amount;
+        await wallet.save();
+      }
+    }
+
+    await expense.populate('category wallet');
     res.status(201).json(expense);
   } catch (err) {
     res.status(400).json({ message: err.message });
@@ -267,20 +285,43 @@ router.put('/:id', async (req, res) => {
   try {
     if (!mongoose.Types.ObjectId.isValid(req.params.id))
       return res.status(400).json({ message: 'Invalid expense ID' });
-    const { title, amount, type, category, date, note, isRecurring, recurringFrequency } = req.body;
-    const body = { title, amount, type, category, date, note, isRecurring, recurringFrequency };
+
+    const old = await Expense.findOne({ _id: req.params.id, user: req.user.id });
+    if (!old) return res.status(404).json({ message: 'Expense not found' });
+
+    const { title, amount, type, category, date, note, isRecurring, recurringFrequency, wallet: walletId, tags } = req.body;
+    const body = { title, amount, type, category, date, note, isRecurring, recurringFrequency, wallet: walletId || null, tags: tags || [] };
     if (body.isRecurring && body.recurringFrequency) {
       body.recurringNextDate = getNextDate(body.date || new Date(), body.recurringFrequency);
     } else if (!body.isRecurring) {
       body.recurringFrequency = null;
       body.recurringNextDate = null;
     }
+
+    // Reverse old wallet balance effect
+    if (old.wallet) {
+      const oldWallet = await Wallet.findOne({ _id: old.wallet, user: req.user.id });
+      if (oldWallet) {
+        oldWallet.balance += old.type === 'income' ? -old.amount : old.amount;
+        await oldWallet.save();
+      }
+    }
+
     const expense = await Expense.findOneAndUpdate(
       { _id: req.params.id, user: req.user.id },
       body,
       { new: true, runValidators: true }
-    ).populate('category');
-    if (!expense) return res.status(404).json({ message: 'Expense not found' });
+    ).populate('category wallet');
+
+    // Apply new wallet balance effect
+    if (expense.wallet) {
+      const newWallet = await Wallet.findOne({ _id: expense.wallet._id, user: req.user.id });
+      if (newWallet) {
+        newWallet.balance += expense.type === 'income' ? expense.amount : -expense.amount;
+        await newWallet.save();
+      }
+    }
+
     res.json(expense);
   } catch (err) {
     res.status(400).json({ message: err.message });
@@ -302,6 +343,15 @@ router.delete('/:id', async (req, res) => {
       return res.status(400).json({ message: 'Invalid expense ID' });
     const expense = await Expense.findOneAndDelete({ _id: req.params.id, user: req.user.id });
     if (!expense) return res.status(404).json({ message: 'Expense not found' });
+
+    if (expense.wallet) {
+      const wallet = await Wallet.findOne({ _id: expense.wallet, user: req.user.id });
+      if (wallet) {
+        wallet.balance += expense.type === 'income' ? -expense.amount : expense.amount;
+        await wallet.save();
+      }
+    }
+
     res.json({ message: 'Expense deleted' });
   } catch (err) {
     res.status(500).json({ message: err.message });

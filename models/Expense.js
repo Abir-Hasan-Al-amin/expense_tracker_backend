@@ -11,6 +11,8 @@ const expenseSchema = new mongoose.Schema({
   isRecurring: { type: Boolean, default: false },
   recurringFrequency: { type: String, enum: [null, 'daily', 'weekly', 'monthly'], default: null },
   recurringNextDate: { type: Date, default: null },
+  wallet: { type: mongoose.Schema.Types.ObjectId, ref: 'Wallet', default: null },
+  tags: [{ type: String, trim: true }],
 }, { timestamps: true });
 
 module.exports = mongoose.model('Expense', expenseSchema);
